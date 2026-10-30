@@ -23,19 +23,14 @@
             padding: 15px;
             text-align: center;
             border-bottom: 1px solid #1f2937;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
         }
         h1 {
-            margin: 0 0 5px 0;
+            margin: 0;
             font-size: 1.2rem;
             color: #f3f4f6;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
         }
         p {
-            margin: 0;
+            margin: 5px 0 0 0;
             font-size: 0.85rem;
             color: #9ca3af;
         }
@@ -49,7 +44,6 @@
             margin: 15px;
             border-radius: 12px;
             cursor: pointer;
-            transition: background 0.2s, border-color 0.2s;
             text-align: center;
             padding: 20px;
         }
@@ -72,23 +66,22 @@
 
     <div id="header">
         <h1>⚡ MAGENE SPEED MAP</h1>
-        <p>Suelta tu archivo .gpx o .fit y mira el mapa de colores</p>
+        <p>Sube tu archivo .fit o .gpx para ver la velocidad por colores</p>
     </div>
 
-    <!-- Zona táctil para abrir archivos optimizada para móviles -->
     <div id="drop-zone" onclick="document.getElementById('file-input').click()">
         <div class="icon-upload">📁</div>
-        <strong>Toca aquí o arrastra tu archivo de ruta</strong>
-        <p style="margin-top: 5px;">Soporta GPX y FIT</p>
-        <input type="file" id="file-input" accept=".gpx,.fit,application/gpx+xml" style="display: none;">
+        <strong>Toca aquí para seleccionar tu ruta</strong>
+        <p>Soporta archivos .FIT y .GPX</p>
+        <input type="file" id="file-input" accept=".gpx,.fit" style="display: none;">
     </div>
 
-    <!-- Contenedor del Mapa -->
     <div id="map"></div>
 
-    <!-- Leaflet JS -->
+    <!-- Leaflet JS y Parsers -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-    
+    <script src="https://cdn.jsdelivr.net/npm/fit-file-parser@1.9.0/dist/fit-parser.min.js"></script>
+
     <script>
         let map = null;
 
@@ -96,41 +89,123 @@
         const dropZone = document.getElementById('drop-zone');
         const mapElement = document.getElementById('map');
 
-        // Forzar apertura del explorador al hacer clic en cualquier parte de la caja
-        dropZone.addEventListener('click', () => {
-            fileInput.click();
-        });
-
         fileInput.addEventListener('change', (e) => {
             const file = e.target.files[0];
             if (!file) return;
 
             const reader = new FileReader();
-            reader.onload = function(event) {
-                const content = event.target.result;
-                // Ocultar zona de carga y mostrar mapa
-                dropZone.style.display = 'none';
-                mapElement.style.display = 'block';
 
-                initMap([[41.652, -3.688]]); // Ejemplo inicial centrado aproximado (Aranda)
-            };
-
-            if (file.name.endsWith('.gpx') || file.name.endsWith('.fit')) {
+            if (file.name.toLowerCase().endsWith('.fit')) {
+                reader.onload = function(event) {
+                    processFitData(event.target.result);
+                };
+                reader.readAsArrayBuffer(file);
+            } else if (file.name.toLowerCase().endsWith('.gpx')) {
+                reader.onload = function(event) {
+                    processGpxData(event.target.result);
+                };
                 reader.readAsText(file);
             } else {
-                alert("Sube un archivo .gpx o .fit válido, máquina.");
+                alert("Por favor, sube un archivo .FIT o .GPX válido.");
             }
         });
 
-        function initMap(coords) {
+        // Obtener color según la velocidad en km/h
+        function getColor(speed) {
+            if (speed > 40) return '#ef4444'; // Rojo (Muy rápido)
+            if (speed > 35) return '#f97316'; // Naranja
+            if (speed > 28) return '#eab308'; // Amarillo
+            if (speed > 20) return '#84cc16'; // Verde claro
+            if (speed > 12) return '#10b981'; // Verde
+            return '#3b82f6';                // Azul (Lento / Subida)
+        }
+
+        function initMap() {
+            dropZone.style.display = 'none';
+            mapElement.style.display = 'block';
+
             if (!map) {
-                map = L.map('map').setView(coords[0], 13);
+                map = L.map('map');
                 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                     maxZoom: 19,
                     attribution: '© OpenStreetMap'
                 }).addTo(map);
             }
-            // Aquí pintarías tu ruta con los colores de velocidad cuando proceses los points.
+        }
+
+        // Procesar archivo FIT de Magene
+        function processFitData(buffer) {
+            const fitParser = new FitParser({ force: true, speedUnit: 'km/h' });
+            
+            fitParser.parse(buffer, (error, data) => {
+                if (error) {
+                    alert("Error al leer el archivo FIT de Magene.");
+                    return;
+                }
+
+                const records = data.records || [];
+                const points = records.filter(r => r.position_lat && r.position_long);
+
+                if (points.length === 0) {
+                    alert("El archivo no contiene coordenadas GPS válidas.");
+                    return;
+                }
+
+                initMap();
+                drawSpeedRoute(points.map(p => ({
+                    lat: p.position_lat,
+                    lng: p.position_long,
+                    speed: p.speed || 0
+                })));
+            });
+        }
+
+        // Procesar archivo GPX
+        function processGpxData(xmlText) {
+            const parser = new DOMParser();
+            const xmlDoc = parser.parseFromString(xmlText, "text/xml");
+            const trkpts = xmlDoc.getElementsByTagName("trkpt");
+
+            const points = [];
+            for (let i = 0; i < trkpts.length; i++) {
+                const lat = parseFloat(trkpts[i].getAttribute("lat"));
+                const lng = parseFloat(trkpts[i].getAttribute("lon"));
+                
+                // Buscar etiqueta de velocidad si existe
+                const speedElem = trkpts[i].getElementsByTagName("speed")[0];
+                let speed = speedElem ? parseFloat(speedElem.textContent) * 3.6 : 0; // m/s a km/h
+
+                points.push({ lat, lng, speed });
+            }
+
+            if (points.length === 0) {
+                alert("No se encontraron puntos GPS en el archivo GPX.");
+                return;
+            }
+
+            initMap();
+            drawSpeedRoute(points);
+        }
+
+        // Pintar la ruta en el mapa tramo por tramo con colores
+        function drawSpeedRoute(points) {
+            const bounds = [];
+
+            for (let i = 0; i < points.length - 1; i++) {
+                const p1 = points[i];
+                const p2 = points[i + 1];
+
+                const color = getColor(p1.speed);
+                const polyline = L.polyline([[p1.lat, p1.lng], [p2.lat, p2.lng]], {
+                    color: color,
+                    weight: 5,
+                    opacity: 0.9
+                }).addTo(map);
+
+                bounds.push([p1.lat, p1.lng]);
+            }
+
+            map.fitBounds(bounds);
             setTimeout(() => { map.invalidateSize(); }, 200);
         }
     </script>
