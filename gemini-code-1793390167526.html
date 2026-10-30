@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Magene Speed Map</title>
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <!-- Tailwind CSS para el diseño -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Librerías para parsear GPX y FIT -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gpxparser/3.0.8/gpxparser.min.js"></script>
+    <script src="https://unpkg.com/fit-file-parser/dist/fit-file-parser.js"></script>
+    <style>
+        #map { height: 70vh; width: 100%; border-radius: 0.75rem; }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 font-sans antialiased min-h-screen p-4">
+    <div class="max-w-4xl mx-auto space-y-4">
+        <header class="text-center py-2">
+            <h1 class="text-2xl font-black tracking-wider text-emerald-400">⚡ MAGENE SPEED MAP</h1>
+            <p class="text-xs text-slate-400">Suelta tu archivo .gpx o .fit y mira el mapa de colores</p>
+        </header>
+
+        <!-- Zona de Carga -->
+        <div id="drop-zone" class="border-2 border-dashed border-slate-700 bg-slate-800/50 hover:bg-slate-800 rounded-xl p-6 text-center cursor-pointer transition-all">
+            <input type="file" id="file-input" accept=".gpx,.fit" class="hidden">
+            <svg class="mx-auto h-10 w-10 text-emerald-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+            <p class="text-sm font-semibold">Toca aquí o arrastra tu archivo de ruta</p>
+            <p class="text-xs text-slate-500 mt-1">Soporta .GPX y .FIT</p>
+        </div>
+
+        <!-- Métricas -->
+        <div id="stats" class="grid grid-cols-3 gap-2 hidden">
+            <div class="bg-slate-800 p-3 rounded-xl text-center border border-slate-700">
+                <span class="block text-xs text-slate-400">Distancia</span>
+                <span id="stat-dist" class="text-lg font-bold text-emerald-400">0 km</span>
+            </div>
+            <div class="bg-slate-800 p-3 rounded-xl text-center border border-slate-700">
+                <span class="block text-xs text-slate-400">Vel. Media</span>
+                <span id="stat-avg" class="text-lg font-bold text-yellow-400">0 km/h</span>
+            </div>
+            <div class="bg-slate-800 p-3 rounded-xl text-center border border-slate-700">
+                <span class="block text-xs text-slate-400">Vel. Máxima</span>
+                <span id="stat-max" class="text-lg font-bold text-red-400">0 km/h</span>
+            </div>
+        </div>
+
+        <!-- Mapa -->
+        <div class="bg-slate-800 p-2 rounded-xl border border-slate-700 shadow-xl">
+            <div id="map"></div>
+        </div>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // Inicializar Mapa
+        const map = L.map('map').setView([41.6608, -3.6883], 13); // Centrado por defecto en Aranda
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; OpenStreetMap & CARTO',
+            maxZoom: 19
+        }).addTo(map);
+
+        let currentLayerGroup = L.layerGroup().addTo(map);
+
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+
+        dropZone.addEventListener('click', () => fileInput.click());
+        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('border-emerald-500'); });
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('border-emerald-500'));
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('border-emerald-500');
+            if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+        });
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length) handleFile(e.target.files[0]);
+        });
+
+        function getColor(speed) {
+            // Velocidad en km/h
+            if (speed > 35) return '#ef4444'; // Rojo (bajada a fuego)
+            if (speed > 25) return '#f97316'; // Naranja
+            if (speed > 15) return '#eab308'; // Amarillo
+            if (speed > 5)  return '#22c55e'; // Verde
+            return '#3b82f6'; // Azul (parado o muy lento)
+        }
+
+        function handleFile(file) {
+            const reader = new FileReader();
+            const extension = file.name.split('.').pop().toLowerCase();
+
+            if (extension === 'gpx') {
+                reader.onload = function(e) {
+                    const gpx = new gpxParser();
+                    gpx.parse(e.target.result);
+                    const tracks = gpx.tracks[0];
+                    if (!tracks) { alert('No se han encontrado datos de ruta.'); return; }
+                    
+                    processRouteData(tracks.points.map(p => ({
+                        lat: p.lat,
+                        lon: p.lon,
+                        ele: p.ele || 0,
+                        speed: (p.speed !== undefined && p.speed !== null) ? p.speed * 3.6 : 0 // m/s a km/h
+                    })), tracks.distance.total / 1000);
+                };
+                reader.readAsText(file);
+            } else if (extension === 'fit') {
+                reader.onload = function(e) {
+                    const fitParser = new FitParser({
+                        force: true,
+                        speedUnit: 'km/h',
+                        lengthUnit: 'km',
+                        temperatureUnit: 'celsius',
+                        elapsedTimeWorkers: true
+                    });
+                    fitParser.parse(e.target.result, function(error, data) {
+                        if (error) { alert('Error al leer el archivo FIT.'); return; }
+                        const records = data.records;
+                        if (!records || records.length === 0) { alert('El archivo FIT no contiene registros.'); return; }
+
+                        const points = records.filter(r => r.position_lat && r.position_long).r
