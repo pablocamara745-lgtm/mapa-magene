@@ -66,14 +66,15 @@
 
     <div id="header">
         <h1>⚡ MAGENE SPEED MAP</h1>
-        <p>Sube tu archivo .fit o .gpx para ver la velocidad por colores</p>
+        <p>Sube tu archivo .fit para ver la velocidad por colores</p>
     </div>
 
     <div id="drop-zone" onclick="document.getElementById('file-input').click()">
         <div class="icon-upload">📁</div>
         <strong>Toca aquí para seleccionar tu ruta</strong>
-        <p>Soporta archivos .FIT y .GPX</p>
-        <input type="file" id="file-input" accept=".gpx,.fit" style="display: none;">
+        <p>Soporta archivos .FIT de Magene</p>
+        <!-- Quitamos el filtro accept para que iOS no atenúe el archivo -->
+        <input type="file" id="file-input" style="display: none;">
     </div>
 
     <div id="map"></div>
@@ -95,19 +96,10 @@
 
             const reader = new FileReader();
 
-            if (file.name.toLowerCase().endsWith('.fit')) {
-                reader.onload = function(event) {
-                    processFitData(event.target.result);
-                };
-                reader.readAsArrayBuffer(file);
-            } else if (file.name.toLowerCase().endsWith('.gpx')) {
-                reader.onload = function(event) {
-                    processGpxData(event.target.result);
-                };
-                reader.readAsText(file);
-            } else {
-                alert("Por favor, sube un archivo .FIT o .GPX válido.");
-            }
+            reader.onload = function(event) {
+                processFitData(event.target.result);
+            };
+            reader.readAsArrayBuffer(file);
         });
 
         // Obtener color según la velocidad en km/h
@@ -158,33 +150,6 @@
                     speed: p.speed || 0
                 })));
             });
-        }
-
-        // Procesar archivo GPX
-        function processGpxData(xmlText) {
-            const parser = new DOMParser();
-            const xmlDoc = parser.parseFromString(xmlText, "text/xml");
-            const trkpts = xmlDoc.getElementsByTagName("trkpt");
-
-            const points = [];
-            for (let i = 0; i < trkpts.length; i++) {
-                const lat = parseFloat(trkpts[i].getAttribute("lat"));
-                const lng = parseFloat(trkpts[i].getAttribute("lon"));
-                
-                // Buscar etiqueta de velocidad si existe
-                const speedElem = trkpts[i].getElementsByTagName("speed")[0];
-                let speed = speedElem ? parseFloat(speedElem.textContent) * 3.6 : 0; // m/s a km/h
-
-                points.push({ lat, lng, speed });
-            }
-
-            if (points.length === 0) {
-                alert("No se encontraron puntos GPS en el archivo GPX.");
-                return;
-            }
-
-            initMap();
-            drawSpeedRoute(points);
         }
 
         // Pintar la ruta en el mapa tramo por tramo con colores
