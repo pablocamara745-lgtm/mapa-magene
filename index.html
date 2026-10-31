@@ -5,37 +5,58 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Magene Speed Map</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script>
+window.onerror = function(m, src, line) {
+  var d = document.getElementById('dbg');
+  if (d) { d.style.color = '#f87171'; d.textContent = 'ERROR: ' + m + ' (línea ' + line + ')'; }
+};
+</script>
 <style>
   html, body { margin:0; padding:0; width:100%; height:100%; }
   body { background:#0b0f19; color:#fff; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; display:flex; flex-direction:column; height:100dvh; }
-  #header { background:#111827; padding:15px; text-align:center; border-bottom:1px solid #1f2937; }
-  h1 { margin:0; font-size:1.2rem; color:#f3f4f6; }
-  #header p { margin:5px 0 0; font-size:.85rem; color:#9ca3af; }
-  #drop-zone { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; border:2px dashed #374151; margin:15px; border-radius:12px; cursor:pointer; text-align:center; padding:20px; }
+  #header { padding:28px 15px 18px; text-align:center; background:linear-gradient(180deg,#1e1b4b 0%,#0b0f19 100%); }
+  h1 { margin:0; font-size:1.5rem; letter-spacing:2px; color:#f3f4f6; }
+  h1 span { background:linear-gradient(90deg,#3b82f6,#10b981,#eab308,#ef4444,#d946ef); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  #header p { margin:8px 0 0; font-size:.9rem; color:#9ca3af; }
+  .bar { height:6px; width:70%; max-width:320px; margin:16px auto 0; border-radius:3px; background:linear-gradient(90deg,#3b82f6,#10b981,#84cc16,#eab308,#f97316,#ef4444,#be123c,#d946ef,#ffffff); }
+  #drop-zone { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; border:2px dashed #4f46e5; margin:15px; border-radius:20px; cursor:pointer; text-align:center; padding:20px; background:radial-gradient(circle at 50% 35%,rgba(79,70,229,.18),transparent 65%); }
   #drop-zone:active { background:#1f2937; border-color:#3b82f6; }
-  #drop-zone p { margin:6px 0 0; font-size:.85rem; color:#9ca3af; }
-  .icon-upload { font-size:2.5rem; margin-bottom:10px; }
-  #map { display:none; flex:1; min-height:0; width:100%; }
+  #drop-zone p { margin:8px 0 0; font-size:.85rem; color:#9ca3af; }
+  .icon-upload { margin-bottom:14px; }
+  .pick { margin-top:18px; padding:12px 26px; border-radius:999px; background:linear-gradient(90deg,#3b82f6,#8b5cf6); color:#fff; font-weight:600; font-size:1rem; }
   #status { font-size:.9rem; color:#fbbf24; margin-top:12px; }
   .legend { background:rgba(17,24,39,.92); color:#fff; padding:8px 10px; border-radius:8px; font-size:12px; line-height:18px; }
   .legend i { display:inline-block; width:12px; height:12px; margin-right:6px; border-radius:2px; vertical-align:middle; }
   .legend hr { border:0; border-top:1px solid #374151; margin:6px 0; }
   .btn { background:#111827; color:#fff; border:1px solid #374151; padding:8px 12px; border-radius:8px; font-size:13px; }
+  #map { display:none; flex:1; min-height:0; width:100%; }
 </style>
 </head>
 <body>
 
 <div id="header">
-  <h1>⚡ MAGENE SPEED MAP</h1>
-  <p>Sube tu archivo .fit o .gpx para ver la velocidad por colores</p>
+  <h1>⚡ MAGENE <span>SPEED MAP</span></h1>
+  <p>Mira tu ruta pintada por velocidad</p>
+  <div class="bar"></div>
+  <p id="dbg" style="font-size:.7rem;color:#6b7280">versión 4 · cargando...</p>
 </div>
 
 <label id="drop-zone" for="file-input">
-  <div class="icon-upload">📁</div>
-  <strong>Toca aquí para seleccionar tu ruta</strong>
-  <p>Soporta archivos .FIT y .GPX</p>
+  <div class="icon-upload">
+    <svg width="96" height="96" viewBox="0 0 96 96" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M12 74 C 26 74, 24 46, 40 46 S 58 70, 70 52 S 78 28, 86 24" stroke="url(#g)" stroke-width="7" stroke-linecap="round" fill="none"/>
+      <circle cx="12" cy="74" r="7" fill="#3b82f6"/>
+      <circle cx="86" cy="24" r="7" fill="#d946ef"/>
+      <defs><linearGradient id="g" x1="12" y1="0" x2="86" y2="0" gradientUnits="userSpaceOnUse">
+        <stop stop-color="#3b82f6"/><stop offset=".35" stop-color="#10b981"/><stop offset=".6" stop-color="#eab308"/><stop offset=".8" stop-color="#ef4444"/><stop offset="1" stop-color="#d946ef"/>
+      </linearGradient></defs>
+    </svg>
+  </div>
+  <strong style="font-size:1.1rem">Sube tu ruta</strong>
+  <p>Archivos .FIT o .GPX</p>
+  <div class="pick">Elegir archivo</div>
   <div id="status"></div>
-  <input type="file" id="file-input" style="display:none">
+  <input type="file" id="file-input" style="position:absolute;opacity:0;width:1px;height:1px">
 </label>
 
 <div id="map"></div>
@@ -149,4 +170,119 @@ function fillMissingSpeed(points) {
   }
 }
 
-func
+function getColor(s) {
+  if (s > 70) return '#ffffff';
+  if (s > 60) return '#d946ef';
+  if (s > 50) return '#be123c';
+  if (s > 40) return '#ef4444';
+  if (s > 35) return '#f97316';
+  if (s > 28) return '#eab308';
+  if (s > 20) return '#84cc16';
+  if (s > 12) return '#10b981';
+  return '#3b82f6';
+}
+
+function initMap() {
+  dropZone.style.display = 'none';
+  mapEl.style.display = 'block';
+  map = L.map('map');
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    maxZoom: 19, subdomains: 'abcd', attribution: '© OpenStreetMap © CARTO'
+  }).addTo(map);
+  const again = L.control({ position: 'topright' });
+  again.onAdd = () => {
+    const b = L.DomUtil.create('button', 'btn');
+    b.textContent = '📁 Otra ruta';
+    L.DomEvent.on(b, 'click', () => location.reload());
+    return b;
+  };
+  again.addTo(map);
+  map.invalidateSize();
+}
+
+function drawSpeedRoute(points) {
+  fillMissingSpeed(points);
+  initMap();
+  let max = 0, sum = 0;
+  for (let i = 0; i < points.length - 1; i++) {
+    const p1 = points[i], p2 = points[i + 1];
+    max = Math.max(max, p1.speed); sum += p1.speed;
+    L.polyline([[p1.lat, p1.lng], [p2.lat, p2.lng]], { color: getColor(p1.speed), weight: 5, opacity: 0.9 }).addTo(map);
+  }
+  const avg = sum / Math.max(1, points.length - 1);
+
+  const legend = L.control({ position: 'bottomleft' });
+  legend.onAdd = () => {
+    const d = L.DomUtil.create('div', 'legend');
+    d.innerHTML = [['#ffffff','> 70 km/h'],['#d946ef','60–70'],['#be123c','50–60'],['#ef4444','40–50'],['#f97316','35–40'],['#eab308','28–35'],['#84cc16','20–28'],['#10b981','12–20'],['#3b82f6','< 12']]
+      .map(([c,t]) => `<i style="background:${c}"></i>${t}`).join('<br>')
+      + `<hr>Máx: ${max.toFixed(1)} km/h<br>Prom: ${avg.toFixed(1)} km/h<br>Puntos: ${points.length}`;
+    return d;
+  };
+  legend.addTo(map);
+
+  const bounds = L.latLngBounds(points.map(p => [p.lat, p.lng]));
+  const fit = () => { map.invalidateSize(); map.fitBounds(bounds, { padding: [30, 30] }); };
+  fit(); setTimeout(fit, 300);
+
+  if (max === 0) alert('El archivo no trae velocidad ni hora, por eso todo sale azul.');
+}
+
+function decodeGpx(text) {
+  const xml = new DOMParser().parseFromString(text, 'text/xml');
+  let nodes = xml.getElementsByTagName('trkpt');
+  if (!nodes.length) nodes = xml.getElementsByTagName('rtept');
+  const points = [];
+  for (let i = 0; i < nodes.length; i++) {
+    const t = nodes[i];
+    const lat = parseFloat(t.getAttribute('lat')), lng = parseFloat(t.getAttribute('lon'));
+    if (isNaN(lat) || isNaN(lng)) continue;
+    const sp = t.getElementsByTagNameNS('*', 'speed')[0];
+    const tm = t.getElementsByTagName('time')[0];
+    points.push({ lat, lng,
+      speed: sp ? parseFloat(sp.textContent) * 3.6 : 0,
+      time: tm ? new Date(tm.textContent).getTime() : null });
+  }
+  return points;
+}
+
+// Detecta el tipo por el CONTENIDO, no por el nombre (sirve con "ruta.gpx." o "ruta")
+function handleBuffer(buffer) {
+  const head = new Uint8Array(buffer, 0, Math.min(buffer.byteLength, 16));
+  const isFit = head.length >= 12 && String.fromCharCode(head[8], head[9], head[10], head[11]) === '.FIT';
+  let points;
+  if (isFit) {
+    points = decodeFit(buffer);
+  } else {
+    const text = new TextDecoder('utf-8').decode(buffer);
+    if (!/<gpx|<trkpt|<rtept/i.test(text)) throw new Error('El archivo no es FIT ni GPX.');
+    points = decodeGpx(text);
+  }
+  if (!points.length) throw new Error('El archivo no contiene coordenadas GPS (¿ruta en interior?).');
+  statusEl.textContent = 'Dibujando ' + points.length + ' puntos...';
+  setTimeout(() => {
+    try { drawSpeedRoute(points); }
+    catch (e) { statusEl.textContent = ''; alert('Error al dibujar: ' + e.message); }
+  }, 30);
+}
+
+fileInput.addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  statusEl.textContent = 'Leyendo ' + file.name + ' (' + Math.round(file.size/1024) + ' KB)...';
+  const reader = new FileReader();
+  reader.onerror = () => { statusEl.textContent = ''; alert('No se pudo leer el archivo.'); };
+  reader.onload = (ev) => {
+    try { handleBuffer(ev.target.result); }
+    catch (err) { statusEl.textContent = ''; alert('Error: ' + err.message); }
+  };
+  reader.readAsArrayBuffer(file);
+});
+
+// Aviso de que todo cargó bien
+document.getElementById('dbg').textContent = (typeof L === 'undefined')
+  ? 'versión 4 · ERROR: no cargó el mapa (Leaflet)'
+  : 'versión 4 · listo ✔';
+</script>
+</body>
+</html>
