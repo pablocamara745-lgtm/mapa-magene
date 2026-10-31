@@ -29,6 +29,7 @@ window.onerror = function(m, src, line) {
   .legend i { display:inline-block; width:12px; height:12px; margin-right:6px; border-radius:2px; vertical-align:middle; }
   .legend hr { border:0; border-top:1px solid #374151; margin:6px 0; }
   .btn { background:#111827; color:#fff; border:1px solid #374151; padding:8px 12px; border-radius:8px; font-size:13px; }
+  .dark-tiles { filter: invert(1) hue-rotate(180deg) brightness(.9) contrast(.95); }
   #map { display:none; flex:1; min-height:0; width:100%; }
 </style>
 </head>
@@ -38,7 +39,7 @@ window.onerror = function(m, src, line) {
   <h1>⚡ MAGENE <span>SPEED MAP</span></h1>
   <p>Mira tu ruta pintada por velocidad</p>
   <div class="bar"></div>
-  <p id="dbg" style="font-size:.7rem;color:#6b7280">versión 4 · cargando...</p>
+  <p id="dbg" style="font-size:.7rem;color:#6b7280">versión 5 · cargando...</p>
 </div>
 
 <label id="drop-zone" for="file-input">
@@ -186,8 +187,8 @@ function initMap() {
   dropZone.style.display = 'none';
   mapEl.style.display = 'block';
   map = L.map('map');
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-    maxZoom: 19, subdomains: 'abcd', attribution: '© OpenStreetMap © CARTO'
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19, className: 'dark-tiles', attribution: '© OpenStreetMap'
   }).addTo(map);
   const again = L.control({ position: 'topright' });
   again.onAdd = () => {
@@ -281,8 +282,8 @@ fileInput.addEventListener('change', (e) => {
 
 // Aviso de que todo cargó bien
 document.getElementById('dbg').textContent = (typeof L === 'undefined')
-  ? 'versión 4 · ERROR: no cargó el mapa (Leaflet)'
-  : 'versión 4 · listo ✔';
+  ? 'versión 5 · ERROR: no cargó el mapa (Leaflet)'
+  : 'versión 5 · listo ✔';
 </script>
 </body>
 </html>
